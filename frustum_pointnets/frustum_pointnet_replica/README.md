@@ -1,6 +1,7 @@
 # frustum_pointnets_pytorch
 A pytorch version of [frustum-pointnets](https://github.com/charlesq34/frustum-pointnets) 
 (Not support Pointnet++ yet)
+
 Adaptation of [frustum-pointnets-pytorch](https://github.com/simon3dv/frustum_pointnets_pytorch) for replica dataset
 
 main function of f-pointnets now:
@@ -77,9 +78,6 @@ python kitti/prepare_data.py --gen_train --gen_val --gen_test
 To visulize all gt boxes and prediction boxes:
 ```angular2
 python kitti/kitti_object.py
-```
-
-
 ```
 
 ## train

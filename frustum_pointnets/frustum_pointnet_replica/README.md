@@ -45,25 +45,15 @@ frustum_pointnets_pytorch
 │   ├── KITTI
 │   │   ├── ImageSets
 │   │   ├── object
-│   │   │   ├──training
+│   │   │   ├──train
 │   │   │      ├──calib & velodyne & label_2 & image_2 & (optional: planes)
+│   │   │   ├──val
+│   │   │      ├──calib & velodyne & label_2 & image_2
 │   │   │   ├──testing
-│   │   │      ├──calib & velodyne & image_2
-│   ├── nuScenes
-│   │   ├── v1.0-mini
-│   │   │      ├──maps & samples & sweeps & v1.0-mini
-│   │   ├── v1.0-trainval
-│   │   ├── v1.0-test
-│   ├── nuScenes2kitti
-│   │   ├── v1.0-mini
-│   │   ├── training
-│   │   ├── testing
+│   │   │      ├──calib & velodyne & label_2 & image_2
 ├── kitti
 │   │   ├── image_sets
 │   │   ├── rgb_detections
-├── nuscenes2kitti
-│   │   ├── image_sets
-│   │   ├── rgb_detections(TODO)
 ├── train
 ```
 #### Replica

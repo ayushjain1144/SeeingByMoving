@@ -1,3 +1,21 @@
+### LDLS Baseline Adapted for Carla and Replica Datasets
+
+Original code: [LDLS](https://github.com/brian-h-wang/LDLS)
+
+### Documentation for Carla and Replica
+
+```
+cd SeeeingByMoving/LDLS
+python main.py
+```
+
+#### Notes
+
+- Add the dataset that you want to run LDLS on in LDLS folder with the name "testing". The dataset should be in KITTI format as demonstrated in the main README.md of SeeingByMoving.
+- Look in main() function for dataset specific instructions
+
+#### Original Documentation starts below
+
 # LDLS: Label Diffusion Lidar Segmentation
 
 ![LDLS](readme_assets/kitti_example.png)

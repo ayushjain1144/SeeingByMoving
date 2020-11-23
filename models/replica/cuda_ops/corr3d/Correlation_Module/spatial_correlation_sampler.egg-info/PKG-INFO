@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: spatial-correlation-sampler
+Version: 0.2.0
+Summary: Correlation module for pytorch
+Home-page: https://github.com/ClementPinard/Pytorch-Correlation-extension
+Author: Clément Pinard
+Author-email: clement.pinard@ensta-paristech.fr
+License: UNKNOWN
+Description: #install 
+        
+        torch==1.2.0, run
+        
+        `python setup.py install`
+        
+        #usage
+        
+        `from spatial_correlation_sampler import SpatialCorrelationSampler`
+        
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Description-Content-Type: text/markdown

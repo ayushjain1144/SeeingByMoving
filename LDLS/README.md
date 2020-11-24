@@ -1,8 +1,8 @@
-### LDLS Baseline Adapted for Carla and Replica Datasets
+### LDLS Baseline Adapted for Carla 
 
 Original code: [LDLS](https://github.com/brian-h-wang/LDLS)
 
-### Documentation for Carla and Replica
+### Documentation for Carla
 
 ```
 cd SeeeingByMoving/LDLS

@@ -1,5 +1,8 @@
 # SeeingByMoving
 
+<p align="center">
+  <img src="static/pipeline.jpg" />
+</p>
 
 ## Installation
 

@@ -125,3 +125,7 @@ To run an experiment that has already been defined:
 3. Execute the runner `whatever_go.sh`
 
 To define a new experiment, either edit an existing group in `exp_whatever.py`, or create a new group. Inside the group, set all the hyperparameters you want.
+
+#### 3D Detection
+
+The code for training `frustum pointnets` and `LDLS` is there in `frustum_pointnets` and `LDLS` folder respectively. The README.md of those files provide detailed instructions.

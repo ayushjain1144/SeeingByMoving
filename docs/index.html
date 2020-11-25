@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>Seeing by Moving: Towards Self-Supervised Amodal Object Detection</title>
+    <link rel="stylesheet" href="w3.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+<br/>
+<br/>
+
+<div class="w3-container" id="paper">
+    <div class="w3-content" style="max-width:850px">
+  
+    <h1 align="center" id="title"><b>Seeing by Moving: Towards Self-Supervised Amodal Object Detection</b></h1>
+    <br/>
+    <p align="center" class="center_text" id="authors" style="font-size: 20px">
+        <a target="_blank" href="">Zhaoyuan Fang</a><sup>*</sup>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        <a target="_blank" href="">Ayush Jain</a><sup>*</sup>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        <a target="_blank" href="">Gabriel Sarch</a><sup>*</sup>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        <a target="_blank" href="">Adam Harley</a>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        <a target="_blank" href="">Katerina Fragkiadaki</a>
+        &nbsp;&nbsp;&nbsp;&nbsp;
+        
+    </p>
+
+    <p align="center" id="title" style="font-size: 18px"><b>Carnegie Mellon University</b></p>
+    
+    <p class="center_text" align="center">
+
+        <sup>*</sup>Equal Contribution
+        &nbsp; &nbsp; &nbsp;
+        
+    </p>
+
+    <!-- <p align="center" id="title">Submitted for review</p> -->
+
+    <br>
+        <!-- <p align="center" id="title"><b>Submit to our ScanRefer Localization Benchmark <a href="http://kaldir.vc.in.tum.de/scanrefer_benchmark/">here</a>!</b></p> -->
+
+        <br><center><a href="https://github.com/ayushjain1144"><img src="teaser.jpg" style="max-width:100%" /></a></center><br>
+        
+        <h3 class="w3-left-align" id="video"><b>Abstract</b></h3>
+        <p>
+             Humans learn to better understand the world by moving around their environment to get more informative viewpoints of the scene. Most methods for 2D visual recognition tasks such as object detection and segmentation treat images of the same scene as individual samples and do not exploit object permanence in multiple views. Generalization to novel scenes and views thus requires additional training with lots of human annotations. In this paper, we propose a self-supervised framework to improve an object detector in unseen scenarios by moving an agent around in a 3D environment and aggregating multi-view RGB-D information. We unproject confident 2D object detections from the pre-trained detector and perform unsupervised 3D segmentation on the point cloud. The segmented 3D objects are then re-projected to all other views to obtain pseudo-labels for fine-tuning. Experiments on both indoor and outdoor datasets show that (1) our framework performs high quality 3D segmentation from raw RGB-D data and a pre-trained 2D detector; (2) fine-tuning with self supervision improves the 2D detector significantly where an unseen RGB image is given as input at test time; (3) training a 3D detector with self supervision outperforms a comparable self-supervised method by a large margin.
+        </p>
+
+       <!--  <h3 class="w3-left-align" id="video"><b>Video</b></h3>
+        <iframe width="850" height="480" src="https://www.youtube.com/embed/T9J5t-UEcNA" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe> -->
+
+        <h3 class="w3-left-align" id="publication"><b>Publication</b></h3>
+        Under Review. <br/>
+        <a href="https://github.com/ayushjain1144">Paper</a> | <a href="https://github.com/ayushjain1144">arXiv</a> | <a href="https://github.com/ayushjain1144">Code</a>
+        <center>
+            <a href="https://github.com/ayushjain1144"><img src="paper.png" style="max-width:100%" /></a>
+        </center><br>
+
+        If you find our project useful, please consider citing us:
+        <pre class="w3-panel w3-leftbar w3-light-grey" style="white-space: pre-wrap; font-family: monospace; font-size: 11px">
+
+@misc{Citation
+}
+    <!-- eprint={6666.6666}, -->
+    <!-- archivePrefix={arXiv}, -->
+    <!-- primaryClass={cs.CV} -->
+<!-- } -->
+
+</pre>
+
+        <h3 class="w3-left-align" id="dataset"><b>Questions</b></h3>
+
+        If you have some questions feel free to <a href="mailto: ayushjain1144@gmail.com">email</a>, . We will be happy to help!
+
+    </div>
+
+
+</div>
+
+<br/>
+<br/>
+
+</body>
+</html>

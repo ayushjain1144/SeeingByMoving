@@ -407,13 +407,6 @@ class EvalModel(nn.Module):
                 box_norm = np.array([ymin/self.H, xmin/self.W, ymax/self.H, xmax/self.W])
                 boxlist_g_norm.append(box_norm)
 
-            self.classlist_g_s.append(classlist_g)
-            self.boxlist_g_s.append(boxlist_g_norm)
-
-            if len(boxlist_g) == 0:
-                print("boxlist_g empty....returning")
-                continue  
-
             ################ MAP evaluation #####################
             if do_map_eval:
                 # setup gt

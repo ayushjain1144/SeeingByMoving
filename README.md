@@ -12,6 +12,7 @@ conda install pytorch torchvision cudatoolkit=10.1 -c pytorch
 conda install -c conda-forge tensorflow moviepy scikit-image
 pip install opencv-python
 pip install connected-components-3d
+pip install git+https://github.com/lucasb-eyer/pydensecrf.git
 ```
 To make tensorboard work with pytorch, install tensorboardX:
 ```

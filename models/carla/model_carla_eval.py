@@ -1,5 +1,4 @@
-# python pascalvoc.py -gt ../gt_pred_finetune/ -det ../maskrcnn_pred_finetune/ -gtformat 'xyrb' -detformat 'xyrb'
-# python pascalvoc.py -gt ../gt_pred_finetune/ -det ../maskrcnn_pred_finetune/ -gtformat 'xyrb' -detformat 'xyrb' -t 0.3
+# python pascalvoc.py -gt ../gt_pred/ -det ../maskrcnn_pred/ -gtformat 'xyrb' -detformat 'xyrb'
 import torch
 import torch.nn as nn
 import hyperparams as hyp
@@ -49,11 +48,10 @@ np.random.seed(0)
 MAX_QUEUE = 10
 make_dataset = False
 do_map_eval = True
-do_visualize = False
 
 # writing labels in folders and files
-output_gt_dir = "./gt_novel_pseudo"
-output_maskrcnn_dir = "./maskrcnn_novel_pseudo"
+output_gt_dir = "./gt_pred_train" #2:19999, 3:39999
+output_maskrcnn_dir = "./maskrcnn_pred_train"
 
 if not os.path.exists(output_gt_dir):
     os.makedirs(output_gt_dir)
@@ -76,21 +74,9 @@ class EvalModel(nn.Module):
         cfg = get_cfg()
         cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-        # cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
-        cfg.MODEL.WEIGHTS = "/home/gsarch/repo/pytorch_disco/logs_novel/model_0019999.pth"
-
-        # Get coco dataset metadata
-        thing_classes = ['beanbag', 'cushion', 'nightstand', 'shelf']
-
-        # register dataset, thing_classes same as coco thing_classes
-        d = "train"
-        DatasetCatalog.register("multiview_novel_selfsup_train", lambda d=d: train_dataset_function())
-        MetadataCatalog.get("multiview_novel_selfsup_train").thing_classes = thing_classes
-
-        DatasetCatalog.register("multiview_novel_selfsup_val", lambda d=d: val_dataset_function())
-        MetadataCatalog.get("multiview_novel_selfsup_val").thing_classes = thing_classes
-        cfg.DATASETS.TEST = ("multiview_novel_selfsup_val",) 
-
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml")
+        #cfg.MODEL.WEIGHTS = "/home/zhaoyuaf/pytorch_disco/logs_detectron/logs_carla_detectron_gt/model_0064999.pth"
+        #cfg.MODEL.WEIGHTS = "/home/zhaoyuaf/pytorch_disco/logs_detectron/logs_carla_detectron_ss/model_0034999.pth"
         self.cfg = cfg
         self.maskrcnn = DefaultPredictor(cfg)
 
@@ -110,8 +96,6 @@ class EvalModel(nn.Module):
             fps=8,
             just_gif=True)
         global_step = feed['global_step']
-        if feed['data_ind'] < 0:   # iter where it fails
-            return False
 
         self.B = feed["set_batch_size"]
         self.S = feed["set_seqlen"]
@@ -136,13 +120,12 @@ class EvalModel(nn.Module):
         self.Z4, self.Y4, self.X4 = int(self.Z/4), int(self.Y/4), int(self.X/4)
 
         self.ZZ, self.ZY, self.ZX = hyp.ZZ, hyp.ZY, hyp.ZX
-        self.pix_T_cams = feed["pix_T_cams_raw"].float()
+        self.pix_T_cams = feed["pix_T_cams"]
         set_data_format = feed['set_data_format']
         self.S = feed["set_seqlen"]
 
-        self.camRs_T_origin = feed["camR_T_origin_raw"].float()
-        self.origin_T_camRs = __u(utils.geom.safe_inverse(__p(self.camRs_T_origin)))
-        self.origin_T_camXs = feed["origin_T_camXs_raw"].float()
+        self.origin_T_camRs = feed["origin_T_camRs"]
+        self.origin_T_camXs = feed["origin_T_camXs"]
 
         self.camX0s_T_camXs = utils.geom.get_camM_T_camXs(self.origin_T_camXs, ind=0)
         self.camR0s_T_camRs = utils.geom.get_camM_T_camXs(self.origin_T_camRs, ind=0)
@@ -151,88 +134,19 @@ class EvalModel(nn.Module):
         self.camXs_T_camRs = __u(__p(self.camRs_T_camXs).inverse())
         self.camXs_T_camX0s = __u(utils.geom.safe_inverse(__p(self.camX0s_T_camXs)))
 
-        self.camXs_T_origin = __u(
-            utils.basic.matmul2(__p(self.camXs_T_camRs), __p(self.camRs_T_origin)))
-
-        self.xyz_camXs = feed["xyz_camXs_raw"].float()
+        self.xyz_camXs = feed["xyz_camXs"]
         self.xyz_camRs = __u(utils.geom.apply_4x4(__p(self.camRs_T_camXs), __p(self.xyz_camXs)))
         self.xyz_camX0s = __u(utils.geom.apply_4x4(__p(self.camX0s_T_camXs), __p(self.xyz_camXs)))
 
-        self.rgb_camXs = feed['rgb_camXs'][:,:,[0,1,2],:,:].float()
-        #self.rgb_camXs = feed['rgb_camXs'].float()
+        self.rgb_camXs = feed['rgb_camXs']
         # self.feat_camXs = []
-        if do_visualize:
-            self.summ_writer.summ_rgbs('inputs/rgbs', self.rgb_camXs.unbind(1))
 
-        # Filter only the five categories we care about
-        '''
-        class mapping between replica and maskRCNN
-        class-name      replica ID      maskRCNN ID
-        chair           20              56
-        bed             7               59
-        dining table    80              60
-        toilet          84              61
-        couch           76              57
-        potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
-        refrigerator    67              72
-        tv(tv-screen)   87              62
-        # vase            91              75
-        '''
-        self.maskrcnn_to_catname = {0: "beanbag", 1: "cushion", 2: "nightstand", 3: "shelf"}
-        self.replica_to_maskrcnn = {6:0, 29:1, 54:2, 71:3}
-
-        self.category_ids_camXs = feed['category_ids_camXs']
-        self.object_category_names = feed['category_names_camXs']
-        self.bbox_2d_camXs = feed['bbox_2d_camXs']
-        self.mask_2d_camXs = feed['mask_2d_camXs']
-
-        '''
-        for idx in range(len(feed['object_category_ids'])):
-            catid = feed['object_category_ids'][idx].item()
-            if catid in self.replica_to_maskrcnn:
-                # append object ids
-                self.object_category_ids.append(self.replica_to_maskrcnn[catid])
-                # get object bounding boxes. corners_origin (3,2), vertices_origin(1,8,3)
-                
-                # corners_origin = feed['bbox_origin'][0,idx].reshape(2,3) # 2=min&max, 3=xyz
-                # vertices_origin = torch.stack([corners_origin[[0,0,0],[0,1,2]],
-                #     corners_origin[[0,0,1],[0,1,2]],
-                #     corners_origin[[0,1,0],[0,1,2]],
-                #     corners_origin[[0,1,1],[0,1,2]],
-                #     corners_origin[[1,0,0],[0,1,2]],
-                #     corners_origin[[1,0,1],[0,1,2]],
-                #     corners_origin[[1,1,0],[0,1,2]],
-                #     corners_origin[[1,1,1],[0,1,2]]]).unsqueeze(0)
-                # vertices_origin = vertices_origin - torch.Tensor([0, 1.5, 0]).reshape(1, 1, 3).cuda()
-
-                self.object_bboxes_2d.append(feed['box2d'][idx])
-                self.object_masks_2d.append(feed['mask_2d'][idx])
-                # self.object_bboxes_origin.append(vertices_origin) # [(1,8,3)]
-        '''
-
-        has_obj = False
-        for s in list(range(self.S)):
-            if len(self.bbox_2d_camXs[s]) > 0:
-                has_obj = True
-                break
-        if not has_obj:
-            return False
-
-        self.bbox_2d_camXs = [torch.cat(bbox_2d_camX_i, dim=0) if len(bbox_2d_camX_i)>0 else [] for bbox_2d_camX_i in self.bbox_2d_camXs] # list of length S, each item = (N_obj,4)
-        # self.object_bboxes_origin = torch.cat(self.object_bboxes_origin, dim=0) #(N_obj, 8, 3)
-
-        
+        self.summ_writer.summ_rgbs('inputs/rgbs', self.rgb_camXs.unbind(1))
         self.depth_camXs_, self.valid_camXs_ = utils.geom.create_depth_image(__p(self.pix_T_cams), __p(self.xyz_camXs), self.H, self.W)
         self.dense_xyz_camXs_ = utils.geom.depth2pointcloud(self.depth_camXs_, __p(self.pix_T_cams))
 
         self.depth_camXs = __u(self.depth_camXs_)
         self.valid_camXs = __u(self.valid_camXs_)
-        # st()
-        if do_visualize:
-            self.summ_writer.summ_oned('gt_depth/view_depth_camX0', self.depth_camXs[:,0]*self.valid_camXs[:,0], maxval=32.0)
-            self.summ_writer.summ_oned('gt_depth/view_valid_camX0', self.valid_camXs[:,0], norm=False)
         self.dense_xyz_camXs = __u(self.dense_xyz_camXs_)
  
         self.dense_xyz_camX0 = self.dense_xyz_camXs[:,0]
@@ -240,12 +154,6 @@ class EvalModel(nn.Module):
         self.dense_xyz_camX0s_mult = self.dense_xyz_camX0s.reshape(self.B, self.S*self.dense_xyz_camX0s.shape[2], 3)
  
         self.boxlist2d_camXs = []
-        self.masklist_camXs = []
-        self.masklist_camXs_safe = []
-        self.any_mask_list_camXs = []
-        self.obj_id_list_camXs = []
-        self.obj_catid_list_camXs = []
-        self.obj_score_list_camXs = []
 
         self.obj_all_catid_list_camXs = []
         self.obj_all_score_list_camXs = []
@@ -282,69 +190,61 @@ class EvalModel(nn.Module):
             v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(self.cfg.DATASETS.TRAIN[0]), scale=1.2)
             out = v.draw_instance_predictions(outputs['instances'].to("cpu"))
             seg_im = out.get_image()
-            if do_visualize:
-                self.summ_writer.summ_rgb('maskrcnn_res/view{}_instance_mask'.format(s), torch.from_numpy(seg_im).permute(2, 0, 1).unsqueeze(0))
+            #self.summ_writer.summ_rgb('input_rgb/view{}_instance_mask'.format(s), torch.from_numpy(seg_im).permute(2, 0, 1).unsqueeze(0))
 
             # get just objects/"things" - theres prob an easier way to do this
-            obj_ids = []
-            obj_catids = []
-            obj_scores = []
-            obj_all_catids = []
-            obj_all_scores = []
-            obj_all_boxes = []
-
+            all_info_list = []
             for segs in range(len(pred_masks)):
-                # old carla, keep only cars (remove bikes): if pred_classes[segs] > 1 and pred_classes[segs] <= 8 and pred_classes[segs] != 3:
-                if pred_classes[segs].item() in self.maskrcnn_to_catname:
-                    if pred_scores[segs] >= 0.90:
-                        print(self.maskrcnn_to_catname[pred_classes[segs].item()], pred_scores[segs].item())
-                        obj_ids.append(segs)
-                        obj_catids.append(pred_classes[segs].item())
-                        obj_scores.append(pred_scores[segs].item())
-
+                # 1 and 3 are bikes. removing them for now
+                if pred_classes[segs] > 1 and pred_classes[segs] <= 8 and pred_classes[segs] != 3: #and pred_scores[segs] > 0.95:
                     y, x = torch.where(pred_masks[segs])
                     if len(y) == 0:
+                        continue 
+                    #pred_box = torch.Tensor([min(y), min(x), max(y), max(x)]) # ymin, xmin, ymax, xmax
+                    pred_box = pred_boxes[segs][[1,0,3,2]]
+                    all_info_list.append([pred_box, pred_classes[segs].item(), pred_scores[segs].item()])
+
+            obj_keep_catids = []
+            obj_keep_scores = []
+            obj_keep_boxes = []
+            rem_info_list = sorted(all_info_list, reverse=True, key=lambda x: x[2])
+            while len(rem_info_list) > 0:
+                obj_keep_catids.append(rem_info_list[0][1])
+                obj_keep_scores.append(rem_info_list[0][2])
+                obj_keep_boxes.append(rem_info_list[0][0])
+
+                ymin1, xmin1, ymax1, xmax1 = rem_info_list[0][0].cpu().numpy()
+                area_conf = (ymax1 - ymin1) * (xmax1 - xmin1)
+
+                rem_info_list_new = []
+
+                for rrr in range(1, len(rem_info_list)):
+                    ymin2, xmin2, ymax2, xmax2 = rem_info_list[rrr][0].cpu().numpy()
+                    area_cur = (ymax2 - ymin2) * (xmax2 - xmin2)
+                    if not area_cur > 0:
                         continue
-                    obj_all_catids.append(pred_classes[segs].item())
-                    obj_all_scores.append(pred_scores[segs].item())
-                    pred_box = torch.Tensor([min(y), min(x), max(y), max(x)]) # ymin, xmin, ymax, xmax
-                    #pred_box = pred_boxes[segs][[1,0,3,2]]
-                    obj_all_boxes.append(pred_box)
 
-            self.obj_id_list_camXs.append(obj_ids)
-            self.obj_catid_list_camXs.append(obj_catids)
-            self.obj_score_list_camXs.append(obj_scores)
+                    x_dist = (min(xmax1, xmax2) - max(xmin1, xmin2))
+                    y_dist = (min(ymax1, ymax2) - max(ymin1, ymin2))
+                    
+                    if x_dist > 0 and y_dist > 0:
+                        area_overlap = x_dist * y_dist
+                        if float(area_overlap) /float(area_conf + area_cur - area_overlap) > 0.5:
+                            continue
+                        if float(area_overlap) / float(area_cur) > 0.5 or float(area_overlap) / float(area_conf) > 0.5:
+                            continue
 
-            self.obj_all_catid_list_camXs.append(obj_all_catids)
-            self.obj_all_score_list_camXs.append(obj_all_scores)
-            self.obj_all_box_list_camXs.append(obj_all_boxes)
+                    rem_info_list_new.append(rem_info_list[rrr])
 
-            N, H, W = pred_masks.shape
-            objs_anymask = torch.zeros((H,W))
-            masklist = pred_masks.reshape(1, N, 1, self.H, self.W).float()
-            self.masklist_camXs.append(masklist)
-            weights = torch.ones(1, 1, 3, 3, device=torch.device('cuda'))
-            for id in obj_ids:
-                obj_mask = masklist[:,id]
-                obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
-                #obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
-                obj_mask[obj_mask > 0] = 1
-                masklist[:,id] = obj_mask
-                objs_anymask[obj_mask[0,0]==1] = 1
+                rem_info_list = rem_info_list_new
 
-            self.any_mask_list_camXs.append(objs_anymask.unsqueeze(0).unsqueeze(0))
-            self.masklist_camXs_safe.append(masklist)
+            self.obj_all_catid_list_camXs.append(obj_keep_catids)
+            self.obj_all_score_list_camXs.append(obj_keep_scores)
+            self.obj_all_box_list_camXs.append(obj_keep_boxes)
 
-        # Andy: comment out the features for now
-        # self.feat_camXs = torch.cat(self.feat_camXs, 1).float()
+        print("preped")
 
-        for s in list(range(self.S)):
-            if len(self.obj_id_list_camXs[s]) > 0:
-                return True
-
-        # return false if we found no objecs in all views
-        print("No objects found....returning")
-        return False
+        return True
 
     def run_train(self, feed):
         total_loss = torch.tensor(0.0).cuda()
@@ -375,6 +275,13 @@ class EvalModel(nn.Module):
         self.pixX_T_camX0s = __u(
             utils.basic.matmul2(__p(self.pix_T_cams), __p(self.camXs_T_camX0s)))
 
+        # Get ground truth 3D boxes
+        self.lrtlist_camRs = feed['lrtlist_camRs']
+        self.full_tidlist_s = feed["tidlist_s"]
+        self.full_scorelist_s = feed["scorelist_s"]
+        self.lrtlist_camXs = __u(utils.geom.apply_4x4_to_lrtlist(__p(self.camXs_T_camRs), __p(self.lrtlist_camRs)))
+        self.lrtlist_camX0s = __u(utils.geom.apply_4x4_to_lrtlist(__p(self.camX0s_T_camXs), __p(self.lrtlist_camXs)))
+
         # List of classlist_g, boxlist_g
         self.classlist_g_s = []
         self.boxlist_g_s = []
@@ -382,30 +289,36 @@ class EvalModel(nn.Module):
         # loop through all views and all objects
         for s in list(range(self.S)):
             ####### Procuring GT 2D BOXS #########
-            if torch.is_tensor(self.bbox_2d_camXs[s]):
-                obj_bboxes_y_min, obj_bboxes_x_min, obj_bboxes_y_max, obj_bboxes_x_max = torch.unbind(self.bbox_2d_camXs[s], axis=1)
-            else:
-                self.classlist_g_s.append([])
-                self.boxlist_g_s.append([])
-                self.masklist_g_s.append([])
-                print("boxlist_g empty....continuing")
-                continue
+            # Convert corners and centers to xyz 
+            xyzlist_camXs = utils.geom.get_xyzlist_from_lrtlist(self.lrtlist_camXs[:,s])
+            B2, N_lrt, D, E = list(xyzlist_camXs.shape)
+            num_gt_obj = torch.sum(self.full_scorelist_s[:, s])
 
+            scorelist_rescore = utils.misc.rescore_lrtlist_with_pointcloud(
+                self.lrtlist_camRs[:, s], self.xyz_camRs[:, s], self.full_scorelist_s[:, s], thresh=2.0)
+            self.full_scorelist_s[:, s] = self.full_scorelist_s[:, s] * scorelist_rescore
+
+            # get box list
+            corners_pix = utils.geom.get_boxlist2d_from_lrtlist(self.pix_T_cams[:,s], self.lrtlist_camXs[:, s], self.H, self.W)
+            corners_pix = self.full_scorelist_s[:, s].unsqueeze(2) * corners_pix
+
+            # deriving class
+            lenlist_cam, _ = utils.geom.split_lrtlist(self.lrtlist_camX0s[:, s])
             classlist_g = []
             boxlist_g = []
-            boxlist_g_norm = []
-            for i in range(self.bbox_2d_camXs[s].shape[0]):
-                ymin, xmin, ymax, xmax = obj_bboxes_y_min[i], obj_bboxes_x_min[i], obj_bboxes_y_max[i], obj_bboxes_x_max[i]
-                if ymin == ymax or xmin == xmax or xmin>self.W or xmax<0 or ymin>self.W or ymax<0:
-                    # remove empty boxes or boxes out of the current view
-                    continue
+            for i in range(N_lrt):
+                
+                if self.full_scorelist_s[:, s, i] > 0:
+                    # st()    
+                    lx, ly, lz = (torch.unbind(lenlist_cam, dim=1))[i][0]
+                    if lx > 1.0:
+                        classlist_g.append(1) #"car"
+                        boxlist_g.append(corners_pix[0,i,:].cpu().numpy())
 
-                classlist_g.append(self.replica_to_maskrcnn[self.category_ids_camXs[s][i].item()])
-                box = np.array([ymin, xmin, ymax, xmax])
-                boxlist_g.append(box)
-
-                box_norm = np.array([ymin/self.H, xmin/self.W, ymax/self.H, xmax/self.W])
-                boxlist_g_norm.append(box_norm)
+                    else:
+                        classlist_g.append(0) #"bike"
+                        # don;t append bikes in gt
+                        # boxlist_g.append(corners_pix[0,i,:].cpu().numpy())
 
             ################ MAP evaluation #####################
             if do_map_eval:
@@ -428,15 +341,18 @@ class EvalModel(nn.Module):
                 boxlist_g = torch.from_numpy(np.array(boxlist_g)).unsqueeze(0).clamp(0,1)
 
                 # Visualize boxes
+                '''
                 if boxlist_g.shape[1] > 0:
                     self.summ_writer.summ_boxlist2d('finals/boxes_{}_gt'.format(s), self.rgb_camXs[:,s], boxlist_g)
                 if boxlist_e_maskrcnn.shape[1] > 0:
                     self.summ_writer.summ_boxlist2d('finals/boxes_{}_maskrcnn'.format(s), self.rgb_camXs[:,s], boxlist_e_maskrcnn)
+                '''
 
                 # To numpy
                 boxlist_g = boxlist_g.squeeze(0).cpu().numpy()
                 boxlist_e_maskrcnn = boxlist_e_maskrcnn.squeeze(0).cpu().numpy()
 
+                # Write to file
                 gt_file = open(f"{output_gt_dir}/{self.img_count}.txt", 'w')
                 maskrcnn_file = open(f"{output_maskrcnn_dir}/{self.img_count}.txt", 'w')
 
@@ -445,7 +361,7 @@ class EvalModel(nn.Module):
                     boxlist_g[i][1] *= self.W #xmin
                     boxlist_g[i][2] *= self.H #ymax
                     boxlist_g[i][3] *= self.W #xmax
-                    gt_file.write(f"{self.maskrcnn_to_catname[classlist_g[i]]} {round(boxlist_g[i][1])} {round(boxlist_g[i][0])} {round(boxlist_g[i][3])} {round(boxlist_g[i][2])}\n")
+                    gt_file.write(f"'car' {round(boxlist_g[i][1])} {round(boxlist_g[i][0])} {round(boxlist_g[i][3])} {round(boxlist_g[i][2])}\n")
                 gt_file.close()
 
                 # getting class labels as text
@@ -454,7 +370,7 @@ class EvalModel(nn.Module):
                     boxlist_e_maskrcnn[i][1] *= self.W #xmin
                     boxlist_e_maskrcnn[i][2] *= self.H #ymax
                     boxlist_e_maskrcnn[i][3] *= self.W #xmax
-                    maskrcnn_file.write(f"{self.maskrcnn_to_catname[int(class_list_e_maskrcnn[i])]} 1 {round(boxlist_e_maskrcnn[i][1])} {round(boxlist_e_maskrcnn[i][0])} {round(boxlist_e_maskrcnn[i][3])} {round(boxlist_e_maskrcnn[i][2])}\n")
+                    maskrcnn_file.write(f"'car' 1 {round(boxlist_e_maskrcnn[i][1])} {round(boxlist_e_maskrcnn[i][0])} {round(boxlist_e_maskrcnn[i][3])} {round(boxlist_e_maskrcnn[i][2])}\n")
                 maskrcnn_file.close()
 
                 self.img_count += 1
@@ -482,4 +398,5 @@ class EvalModel(nn.Module):
             else:
                 print('Not implemented this set name: ', self.set_name)
                 assert(False)
+
 

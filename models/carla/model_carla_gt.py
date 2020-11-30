@@ -17,9 +17,7 @@ from detectron2.data import MetadataCatalog, DatasetCatalog
 from model_base import Model
 from backend import saverloader, inputs
 
-from nets.feat3dnet import Feat3dNet
-
-import archs.pixelshuffle3d
+# from nets.feat3dnet import Feat3dNet
 
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F

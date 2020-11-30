@@ -1,12 +1,13 @@
 from exp_base import *
 
 ############## choose an experiment ##############
-
+############## The mods are for keeping track of exp stack and differentiate exps on tb #############
 # current = 'builder'
 current = 'trainer'
 
 mod = "'train00'" # use rf instead of svm
 mod = "'mod00'" # use amodal 3d box
+
 ############## exps ##############
 
 exps['builder'] = [
@@ -34,10 +35,10 @@ exps['builder'] = [
 exps['trainer'] = [
     'carla_viewmine', # mode
     #'carla_multiview_train_data', # dataset
-    'carla_multiview_25views_new_train',
+    'carla_multiview_25views_new_test',
     #'carla_multiview_90views',
     '16-16-16_bounds_train',
-    '10_iters',
+    '71_iters',
     'lr4',
     'B1',
     #'train_geodesic',

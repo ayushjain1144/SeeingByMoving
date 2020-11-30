@@ -15,17 +15,10 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 from model_base import Model
-from nets.feat2dnet import Feat2dNet
-from nets.feat3dnet import Feat3dNet
-from nets.rgbnet import RgbNet
-from nets.occnet import OccNet
-from nets.rendernet import RenderNet
-from nets.geodesic3Dnet import Geodesic3DNet
+# from nets.feat3dnet import Feat3dNet
 from nets.crfnet import CrfNet, CrfflatNet
-from nets.box3dnet import Box3dNet
 from backend import saverloader, inputs
 
-import archs.pixelshuffle3d
 
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F

@@ -9,6 +9,12 @@ import utils.py
 from backend import readers
 import os, json, random, imageio
 import utils.improc
+
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+
+import ipdb
+st = ipdb.set_trace
 np.set_printoptions(precision=2, suppress=True)
 
 class IndexedDataset(torch.utils.data.Dataset):
@@ -27,6 +33,22 @@ class IndexedDataset(torch.utils.data.Dataset):
         # return (img, label, idx)
         feed = self.base[idx]
         return (feed, idx)
+
+def get_bbox(bbox_origin,object_category):
+    if len(bbox_origin) == 0:
+        score = np.zeros([hyp.N])
+        bbox_origin = np.zeros([hyp.N,6])
+        object_category = ["0"]*hyp.N
+        # st()
+        object_category = np.array(object_category)
+    else:
+        num_boxes = len(bbox_origin)
+        bbox_origin = torch.stack(bbox_origin).squeeze(1).squeeze(1).reshape([num_boxes,6])
+        bbox_origin = np.array(bbox_origin)
+        score = np.pad(np.ones([num_boxes]),[0,hyp.N-num_boxes])
+        bbox_origin = np.pad(bbox_origin,[[0,hyp.N-num_boxes],[0,0]])
+        object_category = np.pad(object_category,[[0,hyp.N-num_boxes]],lambda x,y,z,m: "0")
+    return bbox_origin,score,object_category
 
 class NpzDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_path, shuffle, data_format, data_consec, seqlen):
@@ -50,8 +72,9 @@ class NpzDataset(torch.utils.data.Dataset):
         self.data_format = data_format
         self.data_consec = data_consec
         self.seqlen = seqlen
-
+        # st()
     def __getitem__(self, index):
+        # st()
         if (self.data_format=='seq' or
             self.data_format=='multiview' or
             self.data_format=='nuscenes' or
@@ -64,6 +87,7 @@ class NpzDataset(torch.utils.data.Dataset):
             filename = self.records[index]
             d = np.load(filename, allow_pickle=True)
             d = dict(d)
+            
             # elif self.data_format=='nuscenes':
             #     filename = self.records[index]
             #     d = np.load(filename, allow_pickle=True)['data']
@@ -80,6 +104,7 @@ class NpzDataset(torch.utils.data.Dataset):
         if hyp.do_time_flip:
             d = self.random_time_flip_single(d)
 
+        # st()
         if self.data_format=='simpletraj':
             # for k, v in d.items():
             #     print(k)
@@ -133,22 +158,42 @@ class NpzDataset(torch.utils.data.Dataset):
             d['rgb_camRs'] = rgb_camRs
             
         else:
-            rgb_camXs = d['rgb_camXs']
+            rgb_camXs = d['rgb_camXs_raw']
             # move channel dim inward, like pytorch wants
             rgb_camXs = np.transpose(rgb_camXs, axes=[0, 3, 1, 2])
             rgb_camXs = utils.py.preprocess_color(rgb_camXs)
             d['rgb_camXs'] = rgb_camXs
-            if 'masks_camXs' in d:
-                d['masks_camXs'] = list(d['masks_camXs'])
-        
-        # if (self.data_format=='multiview'):
-        #     # we also have camR
-        #     rgb_camRs = d['rgb_camRs']
-        #     rgb_camRs = np.transpose(rgb_camRs, axes=[0, 3, 1, 2])
-        #     rgb_camRs = utils.py.preprocess_color(rgb_camRs)
-        #     d['rgb_camRs'] = rgb_camRs
 
-        d['filename'] = filename
+            d['filename'] = filename
+            object_info_s_list = d['object_info_s_list']
+            d['category_ids_camXs'] = []
+            d['bbox_2d_camXs'] = []
+            d['mask_2d_camXs'] = []
+            d['category_names_camXs'] = []
+            d['bbox3d_camXs'] = []
+            for i in range(len(object_info_s_list)):
+                category_ids_camX_i = []
+                bbox_2d_camX_i = []
+                mask_2d_camX_i = []
+                category_names_camX_i = []
+                bbox_3d_camX_i = []
+                object_info_dict = object_info_s_list[i]
+                for obj_key in object_info_dict:
+                    obj_info = object_info_dict[obj_key]
+                    category_ids_camX_i.append(obj_info[1])
+                    bbox_2d_camX_i.append(obj_info[4].astype(np.float32))
+                    mask_2d_camX_i.append(obj_info[5].astype(np.float32))
+                    bbox_3d_camX_i.append(obj_info[3].astype(np.float32))
+                    category_names_camX_i.append(obj_info[0])
+
+                d['category_ids_camXs'].append(category_ids_camX_i)
+                d['bbox_2d_camXs'].append(bbox_2d_camX_i)
+                d['mask_2d_camXs'].append(mask_2d_camX_i)
+                d['category_names_camXs'].append(category_names_camX_i)
+                d['bbox3d_camXs'].append(bbox_3d_camX_i)
+
+            del d['object_info_s_list']
+
         return d
 
     def __len__(self):
@@ -168,18 +213,20 @@ class NpzDataset(torch.utils.data.Dataset):
             ]
         elif self.data_format=='multiview':
             item_names = [
-                'pix_T_cams',
-                'origin_T_camRs',
-                'origin_T_camXs',
-                'rgb_camXs',
-                # 'seg_camXs',
-                'lrtlist_camRs',
-                # 'rgb_camRs',
-                'xyz_camXs',
-                'masks_camXs',
-                # 'boxlists',
-                'tidlist_s',
-                'scorelist_s',
+                'pix_T_cams_raw', 
+                'camR_index',
+                'object_category_ids',
+                'object_category_names',
+                'object_instance_ids',
+                'bbox_origin',
+                'camR_T_origin_raw',
+                'origin_T_camXs_raw',
+                'rgb_camXs_raw',
+                'scores',
+                'rgb_camRs',
+                'xyz_camXs_raw',
+                'box2d',
+                'mask_2d',
             ]
         elif self.data_format=='traj':
             item_names = [
@@ -465,4 +512,5 @@ def get_inputs():
                 assert False # other filetypes not ready right now
 
     return all_set_inputs
+
 

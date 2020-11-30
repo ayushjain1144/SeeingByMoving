@@ -21,17 +21,8 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 from model_base import Model
-from nets.feat2dnet import Feat2dNet
-from nets.feat3dnet import Feat3dNet
-from nets.rgbnet import RgbNet
-from nets.occnet import OccNet
-from nets.rendernet import RenderNet
-from nets.geodesic3Dnet import Geodesic3DNet
 from nets.crfnet import CrfNet, CrfflatNet
-from nets.box3dnet import Box3dNet
 from backend import saverloader, inputs
-
-import archs.pixelshuffle3d
 
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
@@ -203,11 +194,8 @@ class CarlaGTModel(nn.Module):
         toilet          84              61
         couch           76              57
         potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
         refrigerator    67              72
         tv(tv-screen)   87              62
-        # vase            91              75
         '''
         self.maskrcnn_to_catname = {56: "chair", 59: "bed", 61: "toilet", 57: "couch", 58: "indoor-plant", 
                             72: "refrigerator", 62: "tv", 60: "dining-table"}
@@ -217,30 +205,6 @@ class CarlaGTModel(nn.Module):
         self.object_category_names = feed['category_names_camXs']
         self.bbox_2d_camXs = feed['bbox_2d_camXs']
         self.mask_2d_camXs = feed['mask_2d_camXs']
-
-        '''
-        for idx in range(len(feed['object_category_ids'])):
-            catid = feed['object_category_ids'][idx].item()
-            if catid in self.replica_to_maskrcnn:
-                # append object ids
-                self.object_category_ids.append(self.replica_to_maskrcnn[catid])
-                # get object bounding boxes. corners_origin (3,2), vertices_origin(1,8,3)
-                
-                # corners_origin = feed['bbox_origin'][0,idx].reshape(2,3) # 2=min&max, 3=xyz
-                # vertices_origin = torch.stack([corners_origin[[0,0,0],[0,1,2]],
-                #     corners_origin[[0,0,1],[0,1,2]],
-                #     corners_origin[[0,1,0],[0,1,2]],
-                #     corners_origin[[0,1,1],[0,1,2]],
-                #     corners_origin[[1,0,0],[0,1,2]],
-                #     corners_origin[[1,0,1],[0,1,2]],
-                #     corners_origin[[1,1,0],[0,1,2]],
-                #     corners_origin[[1,1,1],[0,1,2]]]).unsqueeze(0)
-                # vertices_origin = vertices_origin - torch.Tensor([0, 1.5, 0]).reshape(1, 1, 3).cuda()
-
-                self.object_bboxes_2d.append(feed['box2d'][idx])
-                self.object_masks_2d.append(feed['mask_2d'][idx])
-                # self.object_bboxes_origin.append(vertices_origin) # [(1,8,3)]
-        '''
 
         has_obj = False
         for s in list(range(self.S)):
@@ -446,11 +410,8 @@ class CarlaGTModel(nn.Module):
         toilet          84              61
         couch           76              57
         potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
         refrigerator    67              72
         tv(tv-screen)   87              62
-        # vase            91              75
         '''
         self.maskrcnn_to_catname = {56: "chair", 59: "bed", 61: "toilet", 57: "couch", 58: "indoor-plant", 
                             72: "refrigerator", 62: "tv", 60: "dining-table"}
@@ -461,30 +422,6 @@ class CarlaGTModel(nn.Module):
         self.bbox_2d_camXs = feed['bbox_2d_camXs']
         self.mask_2d_camXs = feed['mask_2d_camXs']
         self.box_3d_camXs = feed['bbox3d_camXs']
-        # st()
-    
-        # for idx in range(len(feed['object_category_ids'])):
-        #     catid = feed['object_category_ids'][idx].item()
-        #     if catid in self.replica_to_maskrcnn:
-        #         # append object ids
-        #         self.object_category_ids.append(self.replica_to_maskrcnn[catid])
-        #         # get object bounding boxes. corners_origin (3,2), vertices_origin(1,8,3)
-                
-        #         corners_origin = feed['bbox_origin'][0,idx].reshape(2,3) # 2=min&max, 3=xyz
-        #         vertices_origin = torch.stack([corners_origin[[0,0,0],[0,1,2]],
-        #             corners_origin[[0,0,1],[0,1,2]],
-        #             corners_origin[[0,1,0],[0,1,2]],
-        #             corners_origin[[0,1,1],[0,1,2]],
-        #             corners_origin[[1,0,0],[0,1,2]],
-        #             corners_origin[[1,0,1],[0,1,2]],
-        #             corners_origin[[1,1,0],[0,1,2]],
-        #             corners_origin[[1,1,1],[0,1,2]]]).unsqueeze(0)
-        #         vertices_origin = vertices_origin - torch.Tensor([0, 1.5, 0]).reshape(1, 1, 3).cuda()
-
-        #         # self.object_bboxes_2d.append(feed['box2d'][idx])
-        #         # self.object_masks_2d.append(feed['mask_2d'][idx])
-        #         self.object_bboxes_origin.append(vertices_origin) # [(1,8,3)]
-        
 
         has_obj = False
         for s in list(range(self.S)):
@@ -495,7 +432,6 @@ class CarlaGTModel(nn.Module):
             return False
 
         self.bbox_2d_camXs = [torch.cat(bbox_2d_camX_i, dim=0) if len(bbox_2d_camX_i)>0 else [] for bbox_2d_camX_i in self.bbox_2d_camXs] # list of length S, each item = (N_obj,4)
-        # self.object_bboxes_origin = torch.cat(self.object_bboxes_origin, dim=0) #(N_obj, 8, 3)
 
         # return false if we found no objecs in all views
         return True
@@ -549,9 +485,6 @@ class CarlaGTModel(nn.Module):
 
                 # append 3d box too
                 corners_origin = self.box_3d_camXs[s][i].reshape(2, 3)
-                # xs = torch.stack([lx/2., lx/2., -lx/2., -lx/2., lx/2., lx/2., -lx/2., -lx/2.], axis=1)
-                # ys = torch.stack([ly/2., ly/2., ly/2., ly/2., -ly/2., -ly/2., -ly/2., -ly/2.], axis=1)
-                # zs = torch.stack([lz/2., -lz/2., -lz/2., lz/2., lz/2., -lz/2., -lz/2., lz/2.], axis=1)
                 vertices_origin = torch.stack([corners_origin[[1,1,1],[0,1,2]],
                     corners_origin[[1,1,0],[0,1,2]],
                     corners_origin[[0,1,0],[0,1,2]],
@@ -603,13 +536,7 @@ class CarlaGTModel(nn.Module):
             boxlist_g = self.boxlist_g_s[s]
             classlist_g = self.classlist_g_s[s]
             masklist_g = self.masklist_g_s[s]
-            # boxlist_g = torch.from_numpy(np.array(boxlist_g)).unsqueeze(0)
-            # st()
-            # boxlist_g = utils.geom.unnormalize_boxlist2d(boxlist_g, self.H, self.W)
-            
-            # st()
-            # print('{0} / {1} / {2}'.format(boxlist_g.shape, boxlist_e_maskrcnn.shape, boxlist_e_pseudo.shape))
-            # boxlist_g = boxlist_g.squeeze().cpu().numpy()
+
             ################ save predictions to dataset ################
             # --> stored in /projects/katefgroup/viewpredseg_dataset
 
@@ -627,7 +554,7 @@ class CarlaGTModel(nn.Module):
             # Increment image count
             self.img_count += 1
 
-                        ############# save pointnet++ dataset #########################
+            ############# save pointnet++ dataset #########################
                     
             if make_pointnet_dataset:
                 
@@ -647,18 +574,18 @@ class CarlaGTModel(nn.Module):
                 classlist_g = self.classlist_g_s[s]
 
                 # # write image in DATASET_PATH_KITTI_IMAGE
-                # im = utils.improc.back2color(img).squeeze(0).permute(1, 2, 0).cpu().numpy()
-                # im = Image.fromarray(im)
-                # im.save(os.path.join(DATASET_PATH_KITTI_IMAGES, f'{self.idx_count}.png'))
+                im = utils.improc.back2color(img).squeeze(0).permute(1, 2, 0).cpu().numpy()
+                im = Image.fromarray(im)
+                im.save(os.path.join(DATASET_PATH_KITTI_IMAGES, f'{self.idx_count}.png'))
                 
                 # write pointcloud
                 # st()
 
-                # pc_xyz = self.xyz_camXs[0, s].cpu().numpy()
-                # np.save(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), pc_xyz)
+                pc_xyz = self.xyz_camXs[0, s].cpu().numpy()
+                np.save(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), pc_xyz)
                 
-                # with open(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), 'w') as f:
-                    # np.save(f, pc_xyz) 
+                with open(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), 'w') as f:
+                    np.save(f, pc_xyz) 
 
                 # labels
                 # box3d_list = self.boxlist_3d_g_s[s]
@@ -673,19 +600,19 @@ class CarlaGTModel(nn.Module):
                         f.write(f"{type_name} 0 3 0 {xmin} {ymin} {xmax} {ymax} {box3d_str}\n")
 
                 # # calibs
-                # with open(os.path.join(DATASET_PATH_KITTI_CALIBS, f'{self.idx_count}.txt'), 'w') as f:
-                #     # st()
-                #     pix_T_cam_save = self.pix_T_cams[0, s].reshape(-1).cpu().numpy()
-                #     pix_T_cam_str = ' '.join(str(e) for e in pix_T_cam_save)
-                #     f.write(f'pix_T_cam: {pix_T_cam_str}\n')
+                with open(os.path.join(DATASET_PATH_KITTI_CALIBS, f'{self.idx_count}.txt'), 'w') as f:
+                    # st()
+                    pix_T_cam_save = self.pix_T_cams[0, s].reshape(-1).cpu().numpy()
+                    pix_T_cam_str = ' '.join(str(e) for e in pix_T_cam_save)
+                    f.write(f'pix_T_cam: {pix_T_cam_str}\n')
 
-                #     camX_T_origin_save = self.camXs_T_origin[0, s].reshape(-1).cpu().numpy()
-                #     camX_T_origin_str = ' '.join(str(e) for e in camX_T_origin_save)
-                #     f.write(f'camX_T_origin: {camX_T_origin_str}\n')
+                    camX_T_origin_save = self.camXs_T_origin[0, s].reshape(-1).cpu().numpy()
+                    camX_T_origin_str = ' '.join(str(e) for e in camX_T_origin_save)
+                    f.write(f'camX_T_origin: {camX_T_origin_str}\n')
 
-                #     camX_T_camR_save = self.camXs_T_camRs[0, s].reshape(-1).cpu().numpy()
-                #     camX_T_camR_str = ' '.join(str(e) for e in camX_T_camR_save)
-                #     f.write(f'camX_T_camR: {camX_T_camR_str}')
+                    camX_T_camR_save = self.camXs_T_camRs[0, s].reshape(-1).cpu().numpy()
+                    camX_T_camR_str = ' '.join(str(e) for e in camX_T_camR_save)
+                    f.write(f'camX_T_camR: {camX_T_camR_str}')
 
                 # write image sets
                 with open(os.path.join(DATASTET_PATH_IMAGE_SETS, f'train.txt'), 'a+') as f:
@@ -695,11 +622,11 @@ class CarlaGTModel(nn.Module):
                     f.write(f"{self.idx_count}\n")
                 
 
-                # with open(os.path.join(DATASET_PATH_RGB_DETECTIONS, f'rgb_detections_test.txt'), 'a+') as f:
-                #     path_to_img = str(os.path.join(DATASET_PATH_KITTI_IMAGES, f'{self.idx_count}.png'))
-                #     for i in range(len(classlist_g)):
-                #         ymin, xmin, ymax, xmax = boxlist_g[i]
-                #         f.write(f"{path_to_img} 2 1 {xmin} {ymin} {xmax} {ymax}\n")               
+                with open(os.path.join(DATASET_PATH_RGB_DETECTIONS, f'rgb_detections_test.txt'), 'a+') as f:
+                    path_to_img = str(os.path.join(DATASET_PATH_KITTI_IMAGES, f'{self.idx_count}.png'))
+                    for i in range(len(classlist_g)):
+                        ymin, xmin, ymax, xmax = boxlist_g[i]
+                        f.write(f"{path_to_img} 2 1 {xmin} {ymin} {xmax} {ymax}\n")               
                 self.idx_count += 1
 
 

@@ -33,17 +33,9 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 from model_base import Model
-from nets.feat2dnet import Feat2dNet
-from nets.feat3dnet import Feat3dNet
-from nets.rgbnet import RgbNet
-from nets.occnet import OccNet
-from nets.rendernet import RenderNet
-from nets.geodesic3Dnet import Geodesic3DNet
 from nets.crfnet import CrfNet, CrfflatNet
-from nets.box3dnet import Box3dNet
 from backend import saverloader, inputs
 
-import archs.pixelshuffle3d
 
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
@@ -211,11 +203,8 @@ class CarlaSemiModel(nn.Module):
         toilet          84              61
         couch           76              57
         potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
         refrigerator    67              72
         tv(tv-screen)   87              62
-        # vase            91              75
         
         beanbag, cushion, nightstand, shelf
         6, 29, 54, 71
@@ -270,11 +259,6 @@ class CarlaSemiModel(nn.Module):
         self.obj_all_score_list_camXs = []
         self.obj_all_box_list_camXs = []
 
-        # self.category_ids_camXs = feed['category_ids_camXs']
-        # self.object_category_names = feed['category_names_camXs']
-        # self.bbox_2d_camXs = feed['bbox_2d_camXs']
-        # self.mask_2d_camXs = feed['mask_2d_camXs']
-
         # Only work on samples with dining table
         has_table = False
         views_with_obj = []
@@ -291,38 +275,6 @@ class CarlaSemiModel(nn.Module):
         print("Views with obj", views_with_obj)
         views_to_get = sorted(random.sample(views_with_obj, N_views))
         for s in list(range(self.S)):
-            '''
-            # Run maskrcnn
-            im = self.rgb_camXs[:, s]
-            im = utils.improc.back2color(im)
-            im = im[0]
-            im = im.permute(1, 2, 0)
-            im = im.detach().cpu().numpy()
-            im = im[:, :, ::-1]
-            outputs = self.maskrcnn(im)
-
-            pred_masks = outputs['instances'].pred_masks
-            pred_boxes = outputs['instances'].pred_boxes.tensor
-            pred_classes = outputs['instances'].pred_classes
-            pred_scores = outputs['instances'].scores
-
-            obj_all_catids = []
-            obj_all_scores = []
-            obj_all_boxes = []
-
-            for segs in range(len(pred_masks)):
-                # Get dining table only
-                if pred_classes[segs].item() == self.int_maskrcnn_id:
-                    obj_all_catids.append(pred_classes[segs].item())
-                    obj_all_scores.append(pred_scores[segs].item())
-                    y, x = torch.where(pred_masks[segs])
-                    pred_box = torch.Tensor([min(y), min(x), max(y), max(x)]) # ymin, xmin, ymax, xmax
-                    obj_all_boxes.append(pred_box)
-
-            self.obj_all_catid_list_camXs.append(obj_all_catids)
-            self.obj_all_score_list_camXs.append(obj_all_scores)
-            self.obj_all_box_list_camXs.append(obj_all_boxes)
-            '''
 
             # GT labels
             if s in views_to_get:
@@ -509,11 +461,6 @@ class CarlaSemiModel(nn.Module):
                 if do_visualize:
                     self.summ_writer.summ_rgb('seg_res/bkg_mask_after'.format(s), im.cuda()*torch.tensor(bkg_mask).cuda())
 
-                # commented out fg eroding
-                # weights = torch.ones(1, 1, 3, 3, device=torch.device('cuda'))
-                # obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
-                # self.summ_writer.summ_rgb('seg_res/fg_mask_after'.format(s), im.cuda()*torch.tensor(obj_mask).cuda())
-
                 # give up if <16px available
                 num_pts = torch.sum(obj_mask*self.valid_camXs[:,s])
                 if num_pts < 32:
@@ -633,21 +580,6 @@ class CarlaSemiModel(nn.Module):
                 rgb_obj = self.vox_util.unproject_rgb_to_mem(
                     self.rgb_camXs[:,0], self.Z, self.Y, self.X, self.pix_T_cams[:,0])
 
-                # if self.summ_writer is not None:
-                #     # plot object centric occupancy
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj', occ_camX0_obj)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj_masked', occ_camX0_obj_masked)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj_masked_safe', occ_camX0_obj_masked_safe)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj', occ_camX0_obj)
-                #     # summ_writer.summ_occ('inputs/occ_agg_obj', occ_agg_obj)
-                #     # summ_writer.summ_unps('inputs/rgb_agg_obj', [rgb_agg_obj], [occ_agg_obj])
-
-                #     # plot scene-centric occupancy
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene', occ_camX0_scene)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene_masked', occ_camX0_scene_masked)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene_masked_safe', occ_camX0_scene_masked_safe)
-                #     self.summ_writer.summ_feat('inputs/rgb_obj', rgb_obj, pca=False)
-                
                 if hyp.do_crf:
                     # st()
                     # Move to pointcloud: color first, implement features later. rgb_camXs (1,S,3,256,768)
@@ -962,22 +894,7 @@ class CarlaSemiModel(nn.Module):
                 boxlist_g = self.boxlist_g_s[s]
                 classlist_g = self.classlist_g_s[s]
 
-                '''
-                # Mask-rcnn
-                boxlist_e_maskrcnn = [box.cpu().numpy() for box in self.obj_all_box_list_camXs[s]]
-                for i in range(len(boxlist_e_maskrcnn)):
-                    boxlist_e_maskrcnn[i][0] /= self.H
-                    boxlist_e_maskrcnn[i][1] /= self.W
-                    boxlist_e_maskrcnn[i][2] /= self.H
-                    boxlist_e_maskrcnn[i][3] /= self.W
-                boxlist_e_maskrcnn = torch.from_numpy(np.array(boxlist_e_maskrcnn)).unsqueeze(0)
-                class_list_e_maskrcnn = self.obj_all_catid_list_camXs[s] # consider all objects, add constraint if we want later
-                confidence_list_maskrcnn = self.obj_all_score_list_camXs[s]
-                # mAP = utils.eval.get_mAP_with_classes(boxlist_e, boxlist_g, class_list_e, class_list_g, confidence_list, num_classes=2, mode="coco")
-                '''
-
                 # Pseudo-label
-                # boxlist_e_pseudo = [box.astype(np.float32) for box in bbox_list]
 
                 # saving modal boxes now
                 boxlist_e_pseudo = [box.astype(np.float32) for box in modal_bbox_list]
@@ -989,11 +906,9 @@ class CarlaSemiModel(nn.Module):
                 boxlist_e_pseudo = torch.from_numpy(np.array(boxlist_e_pseudo)).unsqueeze(0)
                 class_list_e_pseudo = catid_list # consider all objects, add constraint if we want later
                 confidence_list_pseudo = score_list
-                # mAP = utils.eval.get_mAP_with_classes(boxlist_e, boxlist_g, class_list_e, class_list_g, confidence_list, num_classes=2, mode="coco")
 
                 boxlist_g = torch.from_numpy(np.array(boxlist_g)).unsqueeze(0).clamp(0,1)
 
-                # print('{0} / {1} / {2}'.format(boxlist_g.shape, boxlist_e_maskrcnn.shape, boxlist_e_pseudo.shape))
 
                 if do_visualize:
                     if boxlist_g.shape[1] > 0:
@@ -1001,15 +916,11 @@ class CarlaSemiModel(nn.Module):
                     if boxlist_e_pseudo.shape[1] > 0:
                         print("pred visualized")
                         self.summ_writer.summ_boxlist2d('finals/boxes_{}_pred'.format(s), self.rgb_camXs[:,s], boxlist_e_pseudo)
-                    # if boxlist_e_maskrcnn.shape[1] > 0:
-                    #     self.summ_writer.summ_boxlist2d('finals/boxes_{}_maskrcnn'.format(s), self.rgb_camXs[:,s], boxlist_e_maskrcnn)
 
                 boxlist_g = boxlist_g.squeeze(0).cpu().numpy()
                 boxlist_e_pseudo = boxlist_e_pseudo.squeeze(0).cpu().numpy()
-                # boxlist_e_maskrcnn = boxlist_e_maskrcnn.squeeze(0).cpu().numpy()
 
                 gt_file = open(f"{output_gt_dir}/{self.img_count}.txt", 'w')
-                # maskrcnn_file = open(f"{output_maskrcnn_dir}/{self.img_count}.txt", 'w')
                 pseudo_file = open(f"{output_pseudo_dir}/{self.img_count}.txt", 'w')
 
                 for i in range(len(boxlist_g)):
@@ -1021,16 +932,6 @@ class CarlaSemiModel(nn.Module):
                     gt_file.write(f"{self.replica_to_catname[classlist_g[i]]} {round(boxlist_g[i][1])} {round(boxlist_g[i][0])} {round(boxlist_g[i][3])} {round(boxlist_g[i][2])}\n")
                 gt_file.close()
 
-                '''
-                # getting class labels as text
-                for i in range(len(boxlist_e_maskrcnn)):
-                    boxlist_e_maskrcnn[i][0] *= self.H #ymin
-                    boxlist_e_maskrcnn[i][1] *= self.W #xmin
-                    boxlist_e_maskrcnn[i][2] *= self.H #ymax
-                    boxlist_e_maskrcnn[i][3] *= self.W #xmax
-                    maskrcnn_file.write(f"{self.replica_to_catname[int(class_list_e_maskrcnn[i])]} 1 {round(boxlist_e_maskrcnn[i][1])} {round(boxlist_e_maskrcnn[i][0])} {round(boxlist_e_maskrcnn[i][3])} {round(boxlist_e_maskrcnn[i][2])}\n")
-                maskrcnn_file.close()
-                '''
 
                 # getting class labels as text
                 for i in range(len(boxlist_e_pseudo)):

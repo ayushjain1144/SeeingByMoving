@@ -31,17 +31,9 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 from model_base import Model
-from nets.feat2dnet import Feat2dNet
-from nets.feat3dnet import Feat3dNet
-from nets.rgbnet import RgbNet
-from nets.occnet import OccNet
-from nets.rendernet import RenderNet
-from nets.geodesic3Dnet import Geodesic3DNet
 from nets.crfnet import CrfNet, CrfflatNet
-from nets.box3dnet import Box3dNet
 from backend import saverloader, inputs
 
-import archs.pixelshuffle3d
 
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
@@ -69,12 +61,12 @@ from PIL import Image
 np.set_printoptions(precision=2)
 np.random.seed(0)
 MAX_QUEUE = 10
-make_dataset = True 
+make_dataset = False 
 do_map_eval = True
 do_visualize = True
 DATASET_PATH =  '/home/gsarch/datasets/processed/seg/replica_selfsup_seg_val'  # train/val/test
 make_pointnet_dataset = False
-do_consistency = True
+do_consistency = False
 
 DATASET_PATH_POINTNET_BASE = "/home/ayushj2/frustum_replica_pseudo/frustum_pointnets_pytorch" # already exists
 DATASET_PATH_KITTI_BASE = '/home/ayushj2/frustum_replica_pseudo/frustum_pointnets_pytorch/dataset/KITTI' 
@@ -217,11 +209,8 @@ class CarlaViewmineModel(nn.Module):
         toilet          84              61
         couch           76              57
         potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
         refrigerator    67              72
         tv(tv-screen)   87              62
-        # vase            91              75
         '''
         self.maskrcnn_to_catname = {56: "chair", 59: "bed", 61: "toilet", 57: "couch", 58: "indoor-plant", 
                             72: "refrigerator", 62: "tv", 60: "dining-table"}
@@ -231,30 +220,6 @@ class CarlaViewmineModel(nn.Module):
         self.object_category_names = feed['category_names_camXs']
         self.bbox_2d_camXs = feed['bbox_2d_camXs']
         self.mask_2d_camXs = feed['mask_2d_camXs']
-
-        '''
-        for idx in range(len(feed['object_category_ids'])):
-            catid = feed['object_category_ids'][idx].item()
-            if catid in self.replica_to_maskrcnn:
-                # append object ids
-                self.object_category_ids.append(self.replica_to_maskrcnn[catid])
-                # get object bounding boxes. corners_origin (3,2), vertices_origin(1,8,3)
-                
-                # corners_origin = feed['bbox_origin'][0,idx].reshape(2,3) # 2=min&max, 3=xyz
-                # vertices_origin = torch.stack([corners_origin[[0,0,0],[0,1,2]],
-                #     corners_origin[[0,0,1],[0,1,2]],
-                #     corners_origin[[0,1,0],[0,1,2]],
-                #     corners_origin[[0,1,1],[0,1,2]],
-                #     corners_origin[[1,0,0],[0,1,2]],
-                #     corners_origin[[1,0,1],[0,1,2]],
-                #     corners_origin[[1,1,0],[0,1,2]],
-                #     corners_origin[[1,1,1],[0,1,2]]]).unsqueeze(0)
-                # vertices_origin = vertices_origin - torch.Tensor([0, 1.5, 0]).reshape(1, 1, 3).cuda()
-
-                self.object_bboxes_2d.append(feed['box2d'][idx])
-                self.object_masks_2d.append(feed['mask_2d'][idx])
-                # self.object_bboxes_origin.append(vertices_origin) # [(1,8,3)]
-        '''
 
         has_obj = False
         for s in list(range(self.S)):
@@ -368,16 +333,12 @@ class CarlaViewmineModel(nn.Module):
             for id in obj_ids:
                 obj_mask = masklist[:,id]
                 obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
-                #obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
                 obj_mask[obj_mask > 0] = 1
                 masklist[:,id] = obj_mask
                 objs_anymask[obj_mask[0,0]==1] = 1
 
             self.any_mask_list_camXs.append(objs_anymask.unsqueeze(0).unsqueeze(0))
             self.masklist_camXs_safe.append(masklist)
-
-        # Andy: comment out the features for now
-        # self.feat_camXs = torch.cat(self.feat_camXs, 1).float()
 
         for s in list(range(self.S)):
             if len(self.obj_id_list_camXs[s]) > 0:
@@ -509,11 +470,6 @@ class CarlaViewmineModel(nn.Module):
                 if do_visualize:
                     self.summ_writer.summ_rgb('seg_res/bkg_mask_after'.format(s), im.cuda()*torch.tensor(bkg_mask).cuda())
 
-                # commented out fg eroding
-                # weights = torch.ones(1, 1, 3, 3, device=torch.device('cuda'))
-                # obj_mask = 1.0 - F.conv2d(1.0 - obj_mask, weights, padding=1).clamp(0, 1)
-                # self.summ_writer.summ_rgb('seg_res/fg_mask_after'.format(s), im.cuda()*torch.tensor(obj_mask).cuda())
-
                 # give up if <16px available
                 num_pts = torch.sum(obj_mask*self.valid_camXs[:,s])
                 if num_pts < 32:
@@ -580,8 +536,6 @@ class CarlaViewmineModel(nn.Module):
                     xyz_min_all = np.min(obj_xyz_np, 0)
                     xyz_max_all = np.max(obj_xyz_np, 0)
 
-                    # max_dist = torch.max(torch.from_numpy(xyz_max_all - xyz_min_all))
-
                     # Maybe it's better if we just set max dist by hand
                     max_dist = torch.max(torch.from_numpy(np.array([1,1,1])))
 
@@ -632,24 +586,8 @@ class CarlaViewmineModel(nn.Module):
 
                 rgb_obj = self.vox_util.unproject_rgb_to_mem(
                     self.rgb_camXs[:,0], self.Z, self.Y, self.X, self.pix_T_cams[:,0])
-
-                # if self.summ_writer is not None:
-                #     # plot object centric occupancy
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj', occ_camX0_obj)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj_masked', occ_camX0_obj_masked)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj_masked_safe', occ_camX0_obj_masked_safe)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_obj', occ_camX0_obj)
-                #     # summ_writer.summ_occ('inputs/occ_agg_obj', occ_agg_obj)
-                #     # summ_writer.summ_unps('inputs/rgb_agg_obj', [rgb_agg_obj], [occ_agg_obj])
-
-                #     # plot scene-centric occupancy
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene', occ_camX0_scene)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene_masked', occ_camX0_scene_masked)
-                #     self.summ_writer.summ_occ('inputs/occ_camX0_scene_masked_safe', occ_camX0_scene_masked_safe)
-                #     self.summ_writer.summ_feat('inputs/rgb_obj', rgb_obj, pca=False)
                 
                 if hyp.do_crf:
-                    # st()
                     # Move to pointcloud: color first, implement features later. rgb_camXs (1,S,3,256,768)
                     # get rgb and xyz
                     rgb_pc = self.rgb_camXs.permute(0,1,3,4,2).reshape(-1, self.rgb_camXs.shape[2]) # (1*S*256*768,3)
@@ -795,15 +733,12 @@ class CarlaViewmineModel(nn.Module):
                         pred_lrtlist = utils.geom.convert_boxlist_to_lrtlist(box3dlist)
                         pred_lrtlist = obj_vox_util.apply_ref_T_mem_to_lrtlist(pred_lrtlist, Z_dim, Y_dim, X_dim)
                         pred_xyzlist = utils.geom.get_xyzlist_from_lrtlist(pred_lrtlist)
-                        # pred_boxes = utils.geom.corners_to_box3D_single_py(pred_xyzlist)
                         box3d = pred_xyzlist[0][0]
                         # st()
                         if do_visualize:
                             # st()
-                            # rgb_camXs = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
                             full_scorelist_s = torch.Tensor([1.0]).unsqueeze(0)
                             full_tidlist_s = full_scorelist_s.int()
-                            # pix_T_cams = torch.from_numpy(projection.projection_matrix).unsqueeze(0)
                             vis1 = [] 
                             vis1.append(self.summ_writer.summ_lrtlist(
                                         '', self.rgb_camXs[:, ss],
@@ -1036,14 +971,6 @@ class CarlaViewmineModel(nn.Module):
             modal_bbox_list = []
             box3d_list = []
 
-            # for i in range(len(keep_list)):
-            #     catid_list.append(keep_list[i][0])
-            #     mask_list.append(keep_list[i][1])
-            #     bbox_list.append(keep_list[i][2])
-            #     score_list.append(keep_list[i][3])
-            #     modal_bbox_list.append(keep_list[i][4])
-            #     box3d_list.append(keep_list[0][4])
-            # # Inter-class NMS
             keep_list = sorted(keep_list, reverse=True, key=lambda x: x[3])
             while len(keep_list) > 0:
                 catid_list.append(keep_list[0][0])
@@ -1091,10 +1018,6 @@ class CarlaViewmineModel(nn.Module):
                 boxlist_e_maskrcnn = torch.from_numpy(np.array(boxlist_e_maskrcnn)).unsqueeze(0)
                 class_list_e_maskrcnn = self.obj_all_catid_list_camXs[s] # consider all objects, add constraint if we want later
                 confidence_list_maskrcnn = self.obj_all_score_list_camXs[s]
-                # mAP = utils.eval.get_mAP_with_classes(boxlist_e, boxlist_g, class_list_e, class_list_g, confidence_list, num_classes=2, mode="coco")
-
-                # Pseudo-label
-                # boxlist_e_pseudo = [box.astype(np.float32) for box in bbox_list]
 
                 # saving modal boxes now
                 boxlist_e_pseudo = [box.astype(np.float32) for box in modal_bbox_list]
@@ -1106,11 +1029,8 @@ class CarlaViewmineModel(nn.Module):
                 boxlist_e_pseudo = torch.from_numpy(np.array(boxlist_e_pseudo)).unsqueeze(0)
                 class_list_e_pseudo = catid_list # consider all objects, add constraint if we want later
                 confidence_list_pseudo = score_list
-                # mAP = utils.eval.get_mAP_with_classes(boxlist_e, boxlist_g, class_list_e, class_list_g, confidence_list, num_classes=2, mode="coco")
 
                 boxlist_g = torch.from_numpy(np.array(boxlist_g)).unsqueeze(0).clamp(0,1)
-
-                # print('{0} / {1} / {2}'.format(boxlist_g.shape, boxlist_e_maskrcnn.shape, boxlist_e_pseudo.shape))
 
                 if do_visualize:
                     if boxlist_g.shape[1] > 0:
@@ -1209,8 +1129,6 @@ class CarlaViewmineModel(nn.Module):
                 # st()
                 pc_xyz = self.xyz_camXs[0, s].cpu().numpy()
                 np.save(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), pc_xyz)
-                # with open(os.path.join(DATASET_PATH_KITTI_VELODYNE, f'{self.idx_count}.npy'), 'w') as f:
-                    # np.save(f, pc_xyz) 
 
                 # labels
 

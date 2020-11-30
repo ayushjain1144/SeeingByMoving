@@ -18,10 +18,6 @@ from detectron2.data import MetadataCatalog, DatasetCatalog
 from model_base import Model
 from backend import saverloader, inputs
 
-from nets.feat3dnet import Feat3dNet
-
-import archs.pixelshuffle3d
-
 from tensorboardX import SummaryWriter
 import torch.nn.functional as F
 
@@ -174,11 +170,8 @@ class EvalModel(nn.Module):
         toilet          84              61
         couch           76              57
         potted plant    44              58
-        # bottle          14              39
-        # clock           22              74
         refrigerator    67              72
         tv(tv-screen)   87              62
-        # vase            91              75
         '''
         self.maskrcnn_to_catname = {0: "beanbag", 1: "cushion", 2: "nightstand", 3: "shelf"}
         self.replica_to_maskrcnn = {6:0, 29:1, 54:2, 71:3}
@@ -187,30 +180,6 @@ class EvalModel(nn.Module):
         self.object_category_names = feed['category_names_camXs']
         self.bbox_2d_camXs = feed['bbox_2d_camXs']
         self.mask_2d_camXs = feed['mask_2d_camXs']
-
-        '''
-        for idx in range(len(feed['object_category_ids'])):
-            catid = feed['object_category_ids'][idx].item()
-            if catid in self.replica_to_maskrcnn:
-                # append object ids
-                self.object_category_ids.append(self.replica_to_maskrcnn[catid])
-                # get object bounding boxes. corners_origin (3,2), vertices_origin(1,8,3)
-                
-                # corners_origin = feed['bbox_origin'][0,idx].reshape(2,3) # 2=min&max, 3=xyz
-                # vertices_origin = torch.stack([corners_origin[[0,0,0],[0,1,2]],
-                #     corners_origin[[0,0,1],[0,1,2]],
-                #     corners_origin[[0,1,0],[0,1,2]],
-                #     corners_origin[[0,1,1],[0,1,2]],
-                #     corners_origin[[1,0,0],[0,1,2]],
-                #     corners_origin[[1,0,1],[0,1,2]],
-                #     corners_origin[[1,1,0],[0,1,2]],
-                #     corners_origin[[1,1,1],[0,1,2]]]).unsqueeze(0)
-                # vertices_origin = vertices_origin - torch.Tensor([0, 1.5, 0]).reshape(1, 1, 3).cuda()
-
-                self.object_bboxes_2d.append(feed['box2d'][idx])
-                self.object_masks_2d.append(feed['mask_2d'][idx])
-                # self.object_bboxes_origin.append(vertices_origin) # [(1,8,3)]
-        '''
 
         has_obj = False
         for s in list(range(self.S)):

@@ -1,4 +1,4 @@
-# SeeingByMoving
+# Move to See Better: Towards Self-Supervised Amodal Object Detection
 
 <p align="center">
   <img src="static/pipeline.jpg" />
@@ -133,3 +133,17 @@ To define a new experiment, either edit an existing group in `exp_whatever.py`, 
 #### 3D Detection
 
 The code for training `frustum pointnets` and `LDLS` is there in `frustum_pointnets` and `LDLS` folder respectively. The README.md of those files provide detailed instructions.
+
+### Citation
+If you use this code for your research, please consider citing:
+```
+@misc{fang2020better,
+      title={Move to See Better: Towards Self-Supervised Amodal Object Detection}, 
+      author={Zhaoyuan Fang and Ayush Jain and Gabriel Sarch and Adam W. Harley and Katerina Fragkiadaki},
+      year={2020},
+      eprint={2012.00057},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
+Download the paper [here](https://arxiv.org/abs/2012.00057)

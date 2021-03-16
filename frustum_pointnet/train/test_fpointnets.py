@@ -22,7 +22,7 @@ import torch.nn.functional as F
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
 parser.add_argument('--num_point', type=int, default=1024, help='Point Number [default: 1024]')
-parser.add_argument('--model', default='frustum_pointnets_v1', help='Model name [default: frustum_pointnets_v1]')
+parser.add_argument('--model', default='frustum_pointnets_v1_old', help='Model name [default: frustum_pointnets_v1]')
 parser.add_argument('--model_path',
                     default='log/1-_caronlykitti_2020-01-29-15\:39\:35/1-_caronlykitti_2020-01-29-15\:39\:35-acc0.760568-epoch065.pth',
                     help='model checkpoint file path [default: log/model.ckpt]')
@@ -92,10 +92,10 @@ else:
 test_dataloader = DataLoader(TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False, \
                              num_workers=8, pin_memory=True)
 # Model
-if FLAGS.model == 'frustum_pointnets_v1':
+if FLAGS.model == 'frustum_pointnets_v1_old':
     from frustum_pointnets_v1_old import FrustumPointNetv1
 
-    FrustumPointNet = FrustumPointNetv1(n_classes=n_classes,n_channel=4).cuda()
+    FrustumPointNet = FrustumPointNetv1(n_classes=n_classes).cuda()
 
 # Pre-trained Model
 pth = torch.load(FLAGS.model_path)
@@ -320,7 +320,7 @@ def test_one_epoch(model, loader):
             batch_sres)
         test_iou2d += np.sum(iou2ds)
         test_iou3d += np.sum(iou3ds)
-        test_iou3d_acc += np.sum(iou3ds >= 0.7)
+        test_iou3d_acc += np.sum(iou3ds >= 0.25)
 
         # 5. Compute and write all Results
         batch_output = np.argmax(logits, 2)  # mask#torch.Size([32, 1024])
@@ -814,7 +814,7 @@ if __name__ == '__main__':
         print('%s loss: %.6f' % (blue('test'), test_total_loss))
         print('%s segmentation accuracy: %.6f' % (blue('test'), test_acc))
         print('%s box IoU(ground/3D): %.6f/%.6f' % (blue('test'), test_iou2d, test_iou3d))
-        print('%s box estimation accuracy (IoU=0.7): %.6f' % (blue('test'), test_iou3d_acc))
+        print('%s box estimation accuracy (IoU=0.25): %.6f' % (blue('test'), test_iou3d_acc))
     else:
         print('test from rgb detection: Done')
     # 1.from rgb(score_list.append(batch_rgb_prob[j]))

@@ -1,4 +1,4 @@
-# Move to See Better: Towards Self-Supervised Amodal Object Detection
+# Move to See Better: Self-Improving Embodied Object Detection
 
 <p align="center">
   <img src="static/pipeline.jpg" />
